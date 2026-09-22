@@ -1,10 +1,50 @@
 name: build
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: build sdist + wheel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "在这里放你的构建步骤"
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Build
+        run: python -m build
+
+      - name: Check metadata
+        # twine check fails the job if the long_description can't be rendered.
+        # Cheap insurance against a broken README on PyPI.
+        run: python -m twine check dist/*
+
+      - name: List artifacts
+        run: ls -lh dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
